@@ -1,8 +1,9 @@
 import numpy as np
 import pygame
-from matplotlib import pyplot as plt
+
 
 WINDOW_DIM = (1280, 720)
+CIRCLE_RADIUS = 300
 
 class KalmanFilter:
     def __init__(self, A, B, H, Q, R, x_init, P_init = 1, name = ""):
@@ -30,6 +31,9 @@ class KalmanFilter:
         x_hat_k = x_hat_k + K_k @ (z_k - self.H @ x_hat_k)
         P_k = (P_k - P_k @ K_k @ self.H)
 
+        # print(x_hat_k)
+        # print(P_k) 
+        # print()
         self.x_hat_k = x_hat_k
         self.P_k = P_k
         return x_hat_k, P_k
@@ -42,14 +46,12 @@ pygame.init()
 win = pygame.display.set_mode(WINDOW_DIM)
 pygame.display.set_caption("Straight Line")
 
-pos = np.array([0, WINDOW_DIM[1] / 2])
-velocity = np.array([1, 0])
+pos = np.array([WINDOW_DIM[0] / 2 + CIRCLE_RADIUS, WINDOW_DIM[1] / 2])
+velocity = np.array([0.0, -1.0])
 
 gt_crosses = []
 meausure_crosses = []
-P_through_time = []
-error_through_time = []
-measurement_error_through_time = []
+kalman_crosses = []
 
 A = np.eye(2)
 B = np.eye(2)
@@ -57,12 +59,12 @@ H = np.eye(2)
 Q = np.zeros((2, 2))
 R = np.eye(2) * 10
 x_init = pos
-kalman_filter = KalmanFilter(A, B, H, Q, R, np.array([0, 0]), np.eye(2) * 1000) 
+kalman_filter = KalmanFilter(A, B, H, Q, R, np.array([30, 0]), np.eye(2) * 1000) 
 
 run = True
 step_index = 0
 while run:
-    pygame.time.delay(1)
+    pygame.time.delay(10)
 
     # Listen for interrupts
     for event in pygame.event.get():
@@ -71,38 +73,32 @@ while run:
 
     # Update the simulation
     pos += velocity
+    acceleration = velocity @ np.array([[0, -1], [1, 0]]) * np.linalg.norm(velocity) / CIRCLE_RADIUS
+    velocity += acceleration
+    
 
     # Take the measurement
     measured_pos = pos + np.random.normal(0, 50, pos.size)
 
     # Update the filter
-    kalman_position, P = kalman_filter.step(velocity, measured_pos)
-    P_through_time.append(np.average(P))
-    error_through_time.append(np.linalg.norm(kalman_position - pos))
-    measurement_error_through_time.append(np.linalg.norm(measured_pos - pos))
-
-    if any(pos > WINDOW_DIM):
-        run = False
-        plt.plot(P_through_time)
-        plt.show()
-        plt.plot(measurement_error_through_time)
-        plt.show()
-        plt.plot(error_through_time)
-        plt.show()
-
+    kalman_position = kalman_filter.step(velocity, measured_pos)[0]
 
     # Draw
     win.fill((255,255,255))
+    pygame.draw.circle(win, (200,200,200), (int(WINDOW_DIM[0]/2), int(WINDOW_DIM[1]/2)), CIRCLE_RADIUS, 5) 
+
     pygame.draw.circle(win, (255,0,0), pos.astype(int), 10)   
     pygame.draw.circle(win, (0,255,0), measured_pos.astype(int), 10)  
     pygame.draw.circle(win, (0,0,255), kalman_position.astype(int), 10) 
 
     if step_index % 25 == 0: gt_crosses.append(pos.astype(int).tolist())
     if step_index % 5 == 0: meausure_crosses.append(measured_pos.astype(int).tolist())
+    #if step_index % 20 == 0: kalman_crosses.append(kalman_position.astype(int).tolist())
 
     for i in range(len(gt_crosses)): pygame.draw.circle(win, (255,0,0), gt_crosses[i], 5)  
     for i in range(len(meausure_crosses)): pygame.draw.circle(win, (0,255,0), meausure_crosses[i], 5)  
-
+    #for i in range(len(kalman_crosses)): pygame.draw.circle(win, (0,0,255), kalman_crosses[i], 5) 
+    
     pygame.display.update() 
     step_index += 1
 
