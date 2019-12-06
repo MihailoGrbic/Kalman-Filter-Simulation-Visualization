@@ -2,40 +2,9 @@ import numpy as np
 import pygame
 from matplotlib import pyplot as plt
 
+from filters import KalmanFilter
+
 WINDOW_DIM = (1280, 720)
-
-class KalmanFilter:
-    def __init__(self, A, B, H, Q, R, x_init, P_init = 1, name = ""):
-        self.A = A
-        self.B = B
-        self.H = H
-        self.Q = Q
-        self.R = R
-        self.x_hat_k = x_init
-        self.P_k = P_init
-        self.name = name
-        
-    def reset(self, x_init, P_init):
-        self.x_hat_k = x_init
-        self.P_k = P_init
-
-    def step(self, u_k, z_k):
-        x_hat_k_minus_1 = self.x_hat_k
-        P_k_minus_1 = self.P_k
-
-        x_hat_k = self.A @ x_hat_k_minus_1 #+ self.B @ u_k
-        P_k = self.A @ P_k_minus_1 @ np.transpose(self.A) + self.Q 
-        
-        K_k = P_k @ np.transpose(self.H) @ np.linalg.inv(self.H @ P_k @ np.transpose(self.H) + self.R)
-        x_hat_k = x_hat_k + K_k @ (z_k - self.H @ x_hat_k)
-        P_k = (P_k - K_k @ self.H @ P_k)
-
-        self.x_hat_k = x_hat_k
-        self.P_k = P_k
-        return x_hat_k, P_k
-
-def simulation_step(x_prev):
-    pass
 
 
 pygame.init()
@@ -102,12 +71,13 @@ while run:
     measured_velocity = velocity + np.random.normal(0, 50.0, velocity.shape)
 
     # Update the filter
-    kalman_state, P = kalman_filter.step(np.zeros(4), measured_velocity)
+    kalman_state, P = kalman_filter.step(measured_velocity, np.zeros(4))
     kalman_position = np.matrix([[kalman_state[0, 0], kalman_state[1, 0]]]).T
 
     P_through_time.append(np.average(P))
     error_through_time.append(np.linalg.norm(kalman_position - pos))
     # measurement_error_through_time.append(np.linalg.norm(measured_pos - pos))
+    # print(pos)
     bounds = (pos > WINDOW_DIM).flatten().tolist()[0]
     if any(bounds):
         run = False
@@ -125,7 +95,7 @@ while run:
     # pygame.draw.circle(win, (0,255,0), measured_pos.astype(int), 10)
     pygame.draw.circle(win, (0,0,255), kalman_position.astype(int), 10) 
 
-    if step_index % 25 == 0: gt_crosses.append(pos.astype(int))
+    if step_index % 50 == 0: gt_crosses.append(pos.astype(int))
     # if step_index % 5 == 0: meausure_crosses.append(measured_pos.astype(int).tolist())
 
     for i in range(len(gt_crosses)): pygame.draw.circle(win, (255,0,0), gt_crosses[i], 5)
